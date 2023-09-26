@@ -8,9 +8,7 @@ namespace CheckApp
     {
         static void Main(string[] args)
         {
-            var a = DBController.getBankById("CCB");
-            Console.WriteLine(a);
-            TxtFileManage.read();
+            TxtFileManage.processingTxtFile();
 
         }
     }

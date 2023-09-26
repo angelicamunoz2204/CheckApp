@@ -9,6 +9,9 @@ namespace CheckApp.DTO
     {
         public string checkNumber { get; set; }
         public string bankId { get; set; }
+        public string bankName { get; set; }
+        public string bankAddress1 { get; set; }
+        public string bankAddress2 { get; set; }
         public string accountId { get; set; }
         public string currencyId { get; set; }
         public string checkDate { get; set; }

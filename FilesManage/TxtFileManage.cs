@@ -1,22 +1,28 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using CheckApp.DTO;
+using CheckApp.Database;
+using CheckApp.Database.DBModels;
 
 namespace CheckApp.FilesManage
 {
     public class TxtFileManage
     {
-        public static void read()
+        public static void processingTxtFile()
         {
             try
             {
                 string header;
                 string details;
 
-                using (var sr = new StreamReader("./File_transformation_TEST/CHEQUE_ap.TXT"))
+                using (
+                    var sr =
+                        new StreamReader("./File_transformation_TEST/CHEQUE_ap.TXT")
+                )
                 {
                     header = sr.ReadLine();
                     details = sr.ReadLine();
@@ -26,21 +32,58 @@ namespace CheckApp.FilesManage
 
                 var checkHeader = createCheckHeader(header);
                 var checkDetails = createCheckDetails(details);
+                string today = DateTime.Now.ToString("ddMMyyyy");
+                string outputFileName =
+                    String
+                        .Format("{0}{1}{2}",
+                        "./File_transformation_TEST/CHECK_AFT_DATE(",
+                        today,
+                        ").TXT");
 
-                string headerOutput = String.Format("H~{0}~{1}~{2}~{3}~{4}~{5}~{6}",checkHeader.checkNumber, "bankName", "addr1", "addr2", checkHeader.accountId, "checkDate", checkHeader.currencyId);
-                string detailsOutput = String.Format("ID~{0}~{1}~{2}~{3}~{4}{5}{6}~{7}~{8}~{9}", checkHeader.payeeName1, checkHeader.payeeName2, checkHeader.address1, checkHeader.address2, checkHeader.address3, checkHeader.address4, checkHeader.address5, checkHeader.checkAmount, checkHeader.payorId, checkHeader.amountString);
+                string headerOutput =
+                    String
+                        .Format("H~{0}~{1}~{2}~{3}~{4}~{5}~{6}~{7}~{8}~{9}~{10}~{11}{12}{13}~{14}~{15}~{16}<",
+                        checkHeader.checkNumber,
+                        checkHeader.bankName,
+                        checkHeader.bankAddress1,
+                        checkHeader.bankAddress2,
+                        checkHeader.accountId,
+                        checkHeader.checkDate,
+                        checkHeader.currencyId,
+                        checkHeader.payeeName1,
+                        checkHeader.payeeName2,
+                        checkHeader.address1,
+                        checkHeader.address2,
+                        checkHeader.address3,
+                        checkHeader.address4,
+                        checkHeader.address5,
+                        checkHeader.checkAmount,
+                        checkHeader.payorId,
+                        checkHeader.amountString);
+                string detailsOutput =
+                    String
+                        .Format("D~{0}~{1}~{2}~{3}~{4}~{5}~{6}~{7}~{8}",
+                        checkDetails.invoiceNumber,
+                        checkDetails.invoiceDate,
+                        checkDetails.voucherNumber,
+                        checkDetails.voucherDate,
+                        checkDetails.grossAmount,
+                        checkDetails.discountAmount,
+                        checkDetails.netAmount,
+                        checkDetails.concept,
+                        checkDetails.benefitDescription);
 
-                using (var sw = new StreamWriter("./File_transformation_TEST/CHECK_AFT_DATE.TXT"))
-                { 
-                    sw.WriteLine(headerOutput);
-                    sw.WriteLine(detailsOutput);
+                using (var sw = new StreamWriter(outputFileName))
+                {
+                    sw.WriteLine (headerOutput);
+                    sw.WriteLine (detailsOutput);
 
                     sw.Close();
                 }
             }
             catch (IOException e)
             {
-                Console.WriteLine("The file could not be read:");
+                Console.WriteLine("The file could not be read or written:");
                 Console.WriteLine(e.Message);
             }
         }
@@ -51,7 +94,7 @@ namespace CheckApp.FilesManage
             h.checkNumber = headerString.Substring(1, 8).Trim();
             h.bankId = headerString.Substring(9, 10).Trim();
             h.accountId = headerString.Substring(19, 15).Trim();
-            h.checkDate = headerString.Substring(34, 10).Trim();
+            h.checkDate = formatingDate(headerString.Substring(34, 10).Trim());
             h.payeeId = headerString.Substring(44, 10).Trim();
             h.payeeName1 = headerString.Substring(54, 35).Trim();
             h.payeeName2 = headerString.Substring(89, 35).Trim();
@@ -68,19 +111,33 @@ namespace CheckApp.FilesManage
             var accountId = h.accountId;
             string currencyId = "";
 
-            if(accountId == "1001395" || accountId == "1026780" )
+            if (accountId == "1001395" || accountId == "1026780")
             {
                 currencyId = "EC$";
             }
-            
-            if(accountId == "1502764" || accountId == "2045326" )
+
+            if (accountId == "1502764" || accountId == "2045326")
             {
                 currencyId = "$";
             }
 
             h.currencyId = currencyId;
 
+
+            Bank bank = DBController.getBankById(h.bankId);
+
+            h.bankName = bank.BankName;
+            h.bankAddress1 = bank.Address1;
+            h.bankAddress2 = bank.Address2;
+
             return h;
+        }
+
+        public static string formatingDate(string initialDate)
+        {
+            string formatedDate = DateTime.ParseExact(initialDate, "MM/dd/yyyy", CultureInfo.InvariantCulture).ToString("dd/MM/yyyy");
+
+            return formatedDate.ToString();
         }
 
         public static DetailsDTO createCheckDetails(string detailsString)
@@ -93,14 +150,22 @@ namespace CheckApp.FilesManage
             d.invoiceNumber = detailsString.Substring(44, 30).Trim();
             d.invoiceDate = detailsString.Substring(74, 10).Trim();
             d.voucherNumber = detailsString.Substring(84, 16).Trim();
-            d.voucherDate = detailsString.Substring(100, 10).Trim();
-            d.grossAmount = detailsString.Substring(110, 14).Trim();
-            d.discountAmount = detailsString.Substring(124, 14).Trim();
-            d.netAmount = detailsString.Substring(138, 14).Trim();
+            d.voucherDate = formatingDate(detailsString.Substring(100, 10).Trim());
+            d.grossAmount = formatingDecimalNumbers(detailsString.Substring(110, 14).Trim());
+            d.discountAmount = formatingDecimalNumbers(detailsString.Substring(124, 14).Trim());
+            d.netAmount = formatingDecimalNumbers(detailsString.Substring(138, 14).Trim());
             d.concept = detailsString.Substring(152, 30).Trim();
             d.benefitDescription = detailsString.Substring(182).Trim();
 
             return d;
+        }
+
+        public static string formatingDecimalNumbers(string initialNum)
+        {
+            double num = double.Parse(initialNum.Replace('.', ','));
+            string formatedNum = String.Format("{0:N2}", num);
+
+            return formatedNum;
         }
     }
 }
